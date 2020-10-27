@@ -89,6 +89,7 @@ def train_model(train_file, model_file):
     # use torch library to save model parameters, hyperparameters, etc. to model_file
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     time_limit = datetime.timedelta(minutes=1, seconds=30)
+    time_exceeded = False
 
     char_to_idx, word_to_idx, tag_to_idx, idx_to_tag, training_data = prepareDicts(train_file)
     print("number of chars: ", len(char_to_idx))
@@ -101,7 +102,7 @@ def train_model(train_file, model_file):
 
     loss_function = nn.NLLLoss()
     optimizer = optim.SGD(model.parameters(), lr=0.1)
-    for epoch in range(1):
+    for epoch in range(3):
         accumulated_loss = 0
         for sent in training_data:
             word_idxs = []
@@ -137,8 +138,10 @@ def train_model(train_file, model_file):
 
             if datetime.datetime.now() - start_time > time_limit:
                 print("time exceeded")
+                time_exceeded = True
                 break
-
+        if time_exceeded:
+            break
         print(accumulated_loss / len(training_data))
         print("epoch ", epoch + 1)
 
