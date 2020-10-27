@@ -13,19 +13,36 @@ import torch.optim as optim
 import pickle
 
 class CharCNNBiLSTMTagger(nn.Module):
-    def __init__(self, D_in, D_in_char, H, H_char, char_size, vocab_size, tagset_size):
+    def __init__(self, word_embed_dim, char_embed_dim, char_hidden_dim, lstm_hidden,
+                 char_size, vocab_size, tagset_size):
         super(CharCNNBiLSTMTagger, self).__init__()
-        self.H = H
-        self.word_embeddings = nn.Embedding(vocab_size + 1, D_in, padding_idx=vocab_size)
-        self.char_embeddings = nn.Embedding(char_size + 1, D_in_char, padding_idx=char_size)
-        # self.conv1d = nn.Conv1d(D_in_char, H_char, kernel_size=3)
-        self.lstm = nn.LSTM(D_in, H, num_layers=1, batch_first=True, bidirectional=True)
-        self.hidden2tag = nn.Linear(H*2, tagset_size)
+        self.word_embeddings = nn.Embedding(vocab_size + 1, word_embed_dim, padding_idx=vocab_size)
+        self.char_embeddings = nn.Embedding(char_size + 1, char_embed_dim, padding_idx=char_size)
 
-    def forward(self, x):
-        embeds = self.word_embeddings(x)
-        lstm_out, _ = self.lstm(embeds.view(len(x), 1, -1))
-        hidden2tag_out = self.hidden2tag(lstm_out.view(len(x), -1))
+        self.conv1d = nn.Conv1d(char_embed_dim, char_hidden_dim, kernel_size=3)
+        self.maxpool = nn.AdaptiveMaxPool1d(1)
+        self.lstm = nn.LSTM(word_embed_dim + char_hidden_dim,
+                            lstm_hidden, num_layers=1, batch_first=True, bidirectional=True)
+        self.hidden2tag = nn.Linear(lstm_hidden*2, tagset_size)
+
+    def forward(self, x1, x2):
+        word_embeds = self.word_embeddings(x1)
+        char_embeds = self.char_embeddings(x2).transpose(1,2)
+        try:
+            conv1d_out = self.conv1d(char_embeds)
+        except Exception as e:
+            print(char_embeds)
+            print(char_embeds.shape)
+            print(char_embeds.size)
+            exit()
+        pooled = self.maxpool(conv1d_out)
+        pooled = pooled.view(len(x2), -1)
+        # print(word_embeds.shape)
+        # print(pooled.shape)
+        combined_embeds = torch.cat((word_embeds, pooled), 1)
+        lstm_out, _ = self.lstm(combined_embeds.view(len(x1), 1, -1))
+        # lstm_out, _ = self.lstm(word_embeds.view(len(x1), 1, -1))
+        hidden2tag_out = self.hidden2tag(lstm_out.view(len(x1), -1))
         tag_scores = F.log_softmax(hidden2tag_out)
         return tag_scores
 
@@ -53,6 +70,7 @@ def prepareDicts(train_file):
                     idx_to_tag[idx] = tag
 
                 char_vector = []
+
                 for char in word:
                     if char not in char_to_idx:
                         char_to_idx[char] = len(char_to_idx)
@@ -75,26 +93,47 @@ def train_model(train_file, model_file):
     print("number of tags: ", len(tag_to_idx))
     print("number of sentences: ", len(training_data))
 
-    model = CharCNNBiLSTMTagger(300, 10, 50, 5, len(char_to_idx), len(word_to_idx), len(tag_to_idx))
+    # for word, idx in word_to_idx.items():
+    #     if idx == 4111:
+    #         print(word)
+    # for char, idx in char_to_idx.items():
+    #     if idx == 23:
+    #         print(char)
+    # exit()
+
+    model = CharCNNBiLSTMTagger(100, 10, 10, 30, len(char_to_idx), len(word_to_idx), len(tag_to_idx))
     model.to(device)
 
     loss_function = nn.NLLLoss()
     optimizer = optim.SGD(model.parameters(), lr=0.1)
-    for i in range(10):
+    for i in range(2):
         accumulated_loss = 0
         for sent in training_data:
             word_idxs = []
             tag_idxs = []
+            char_idxs = []
             for triple in sent:
+                char_idxs.append(triple[0])
                 word_idxs.append(triple[1])
                 tag_idxs.append(triple[2])
-            x = torch.tensor(word_idxs, dtype=torch.long)
+            # padding
+            max_word_len = 3
+            for i, chars in enumerate(char_idxs):
+                if len(chars) > max_word_len:
+                    max_word_len = len(chars)
+            for i, chars in enumerate(char_idxs):
+                while len(chars) < max_word_len:
+                    chars.append(len(char_to_idx))
+
+            x1 = torch.tensor(word_idxs, dtype=torch.long)
+            x2 = torch.tensor(char_idxs, dtype=torch.long)
             y = torch.tensor(tag_idxs, dtype=torch.long)
-            x = x.to(device)
+            x1 = x1.to(device)
+            x2 = x2.to(device)
             y = y.to(device)
 
             model.zero_grad()
-            y_pred = model(x)
+            y_pred = model(x1, x2)
             loss = loss_function(y_pred, y)
             loss.backward()
             optimizer.step()
