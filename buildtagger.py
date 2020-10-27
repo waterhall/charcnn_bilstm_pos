@@ -20,6 +20,7 @@ class CharCNNBiLSTMTagger(nn.Module):
         self.char_embeddings = nn.Embedding(char_size + 2, char_embed_dim, padding_idx=char_size + 1)
 
         self.conv1d = nn.Conv1d(char_embed_dim, char_hidden_dim, kernel_size=3)
+        self.relu = nn.ReLU()
         self.maxpool = nn.AdaptiveMaxPool1d(1)
         self.lstm = nn.LSTM(word_embed_dim + char_hidden_dim,
                             lstm_hidden, num_layers=1, batch_first=True, bidirectional=True)
@@ -35,6 +36,7 @@ class CharCNNBiLSTMTagger(nn.Module):
             print(char_embeds.shape)
             print(char_embeds.size)
             exit()
+        conv1d_out = self.relu(conv1d_out)
         pooled = self.maxpool(conv1d_out)
         pooled = pooled.view(len(x2), -1)
         # print(word_embeds.shape)
@@ -93,20 +95,12 @@ def train_model(train_file, model_file):
     print("number of tags: ", len(tag_to_idx))
     print("number of sentences: ", len(training_data))
 
-    # for word, idx in word_to_idx.items():
-    #     if idx == 4111:
-    #         print(word)
-    # for char, idx in char_to_idx.items():
-    #     if idx == 23:
-    #         print(char)
-    # exit()
-
     model = CharCNNBiLSTMTagger(100, 10, 10, 30, len(char_to_idx), len(word_to_idx), len(tag_to_idx))
     model.to(device)
 
     loss_function = nn.NLLLoss()
     optimizer = optim.SGD(model.parameters(), lr=0.1)
-    for i in range(2):
+    for epoch in range(1):
         accumulated_loss = 0
         for sent in training_data:
             word_idxs = []
@@ -137,10 +131,10 @@ def train_model(train_file, model_file):
             loss = loss_function(y_pred, y)
             loss.backward()
             optimizer.step()
-            # print(loss.item())
+            print(loss.item())
             accumulated_loss += loss.item()
         print(accumulated_loss / len(training_data))
-        print("epoch ", i + 1)
+        print("epoch ", epoch + 1)
 
     with open(model_file, "wb") as f:
         pickle.dump((model.state_dict(), char_to_idx, word_to_idx, tag_to_idx, idx_to_tag), f)

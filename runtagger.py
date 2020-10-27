@@ -14,10 +14,11 @@ class CharCNNBiLSTMTagger(nn.Module):
     def __init__(self, word_embed_dim, char_embed_dim, char_hidden_dim, lstm_hidden,
                  char_size, vocab_size, tagset_size):
         super(CharCNNBiLSTMTagger, self).__init__()
-        self.word_embeddings = nn.Embedding(vocab_size + 1, word_embed_dim, padding_idx=vocab_size)
-        self.char_embeddings = nn.Embedding(char_size + 1, char_embed_dim, padding_idx=char_size)
+        self.word_embeddings = nn.Embedding(vocab_size + 2, word_embed_dim, padding_idx=vocab_size + 1)
+        self.char_embeddings = nn.Embedding(char_size + 2, char_embed_dim, padding_idx=char_size + 1)
 
         self.conv1d = nn.Conv1d(char_embed_dim, char_hidden_dim, kernel_size=3)
+        self.relu = nn.ReLU()
         self.maxpool = nn.AdaptiveMaxPool1d(1)
         self.lstm = nn.LSTM(word_embed_dim + char_hidden_dim,
                             lstm_hidden, num_layers=1, batch_first=True, bidirectional=True)
@@ -33,6 +34,7 @@ class CharCNNBiLSTMTagger(nn.Module):
             print(char_embeds.shape)
             print(char_embeds.size)
             exit()
+        conv1d_out = self.relu(conv1d_out)
         pooled = self.maxpool(conv1d_out)
         pooled = pooled.view(len(x2), -1)
         # print(word_embeds.shape)
@@ -43,6 +45,7 @@ class CharCNNBiLSTMTagger(nn.Module):
         hidden2tag_out = self.hidden2tag(lstm_out.view(len(x1), -1))
         tag_scores = F.log_softmax(hidden2tag_out)
         return tag_scores
+
 
 def tag_sentence(test_file, model_file, out_file):
     # write your code here. You can add functions as well.
