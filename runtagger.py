@@ -77,13 +77,16 @@ def tag_sentence(test_file, model_file, out_file):
                     if word in word_to_idx:
                         word_idxs.append(word_to_idx[word])
                     else:
-                        word_idxs.append(len(word_to_idx))
+                        word_idxs.append(len(word_to_idx)) # unk
                 for word in splitted:
                     word_char_idxs = []
                     for char in word:
-                        word_char_idxs.append(char_to_idx[char])
+                        if char in char_to_idx:
+                            word_char_idxs.append(char_to_idx[char])
+                        else:
+                            word_char_idxs.append(len(char_to_idx)) # unk
                     while len(word_char_idxs) < max_word_len: # pad
-                        word_char_idxs.append(len(char_to_idx))
+                        word_char_idxs.append(len(char_to_idx) + 1)
                     char_idxs.append(word_char_idxs)
 
                 x1 = torch.tensor(word_idxs, dtype=torch.long)
