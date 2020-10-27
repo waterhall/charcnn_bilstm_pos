@@ -88,6 +88,7 @@ def train_model(train_file, model_file):
     # write your code here. You can add functions as well.
     # use torch library to save model parameters, hyperparameters, etc. to model_file
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    time_limit = datetime.timedelta(minutes=1, seconds=30)
 
     char_to_idx, word_to_idx, tag_to_idx, idx_to_tag, training_data = prepareDicts(train_file)
     print("number of chars: ", len(char_to_idx))
@@ -131,8 +132,13 @@ def train_model(train_file, model_file):
             loss = loss_function(y_pred, y)
             loss.backward()
             optimizer.step()
-            print(loss.item())
+            # print(loss.item())
             accumulated_loss += loss.item()
+
+            if datetime.datetime.now() - start_time > time_limit:
+                print("time exceeded")
+                break
+
         print(accumulated_loss / len(training_data))
         print("epoch ", epoch + 1)
 
