@@ -23,7 +23,7 @@ class CharCNNBiLSTMTagger(nn.Module):
         self.relu = nn.ReLU()
         self.maxpool = nn.AdaptiveMaxPool1d(1)
         self.lstm = nn.LSTM(word_embed_dim + char_hidden_dim,
-                            lstm_hidden, num_layers=1, batch_first=True, bidirectional=True)
+                            lstm_hidden, num_layers=1, batch_first=True, dropout=0.1, bidirectional=True)
         self.hidden2tag = nn.Linear(lstm_hidden*2, tagset_size)
 
     def forward(self, x1, x2):
