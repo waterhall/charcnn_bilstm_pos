@@ -16,8 +16,8 @@ class CharCNNBiLSTMTagger(nn.Module):
     def __init__(self, word_embed_dim, char_embed_dim, char_hidden_dim, lstm_hidden,
                  char_size, vocab_size, tagset_size):
         super(CharCNNBiLSTMTagger, self).__init__()
-        self.word_embeddings = nn.Embedding(vocab_size + 1, word_embed_dim, padding_idx=vocab_size)
-        self.char_embeddings = nn.Embedding(char_size + 1, char_embed_dim, padding_idx=char_size)
+        self.word_embeddings = nn.Embedding(vocab_size + 2, word_embed_dim, padding_idx=vocab_size + 1)
+        self.char_embeddings = nn.Embedding(char_size + 2, char_embed_dim, padding_idx=char_size + 1)
 
         self.conv1d = nn.Conv1d(char_embed_dim, char_hidden_dim, kernel_size=3)
         self.maxpool = nn.AdaptiveMaxPool1d(1)
