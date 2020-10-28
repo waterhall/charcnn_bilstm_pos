@@ -23,6 +23,7 @@ class CharCNNBiLSTMTagger(nn.Module):
         self.lstm = nn.LSTM(word_embed_dim + char_hidden_dim,
                             lstm_hidden, num_layers=1, batch_first=True, bidirectional=True)
         self.hidden2tag = nn.Linear(lstm_hidden*2, tagset_size)
+        self.dropout = nn.Dropout(0.1)
 
     def forward(self, x1, x2):
         word_embeds = self.word_embeddings(x1)
@@ -42,6 +43,7 @@ class CharCNNBiLSTMTagger(nn.Module):
         combined_embeds = torch.cat((word_embeds, pooled), 1)
         lstm_out, _ = self.lstm(combined_embeds.view(len(x1), 1, -1))
         # lstm_out, _ = self.lstm(word_embeds.view(len(x1), 1, -1))
+        lstm_out = self.dropout(lstm_out)
         hidden2tag_out = self.hidden2tag(lstm_out.view(len(x1), -1))
         tag_scores = F.log_softmax(hidden2tag_out)
         return tag_scores
@@ -57,9 +59,13 @@ def tag_sentence(test_file, model_file, out_file):
         word_to_idx = data[2]
         tag_to_idx = data[3]
         idx_to_tag = data[4]
+        model_params = data[5]
 
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    model = CharCNNBiLSTMTagger(100, 10, 10, 30, len(char_to_idx), len(word_to_idx), len(tag_to_idx))
+
+    model = CharCNNBiLSTMTagger(model_params[0], model_params[1], model_params[2],
+                                model_params[3], len(char_to_idx),
+                                len(word_to_idx), len(tag_to_idx))
     model.to(device)
     model.load_state_dict(model_state_dict)
     model.eval()

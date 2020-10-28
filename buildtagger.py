@@ -11,6 +11,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import pickle
+import numpy as np
+
+wordembed_dim = 256
+char_embed_dim = 128
+cnn_filters = 16
+lstm_hidden = 32
+time_limit = datetime.timedelta(minutes=1)
 
 class CharCNNBiLSTMTagger(nn.Module):
     def __init__(self, word_embed_dim, char_embed_dim, char_hidden_dim, lstm_hidden,
@@ -23,8 +30,9 @@ class CharCNNBiLSTMTagger(nn.Module):
         self.relu = nn.ReLU()
         self.maxpool = nn.AdaptiveMaxPool1d(1)
         self.lstm = nn.LSTM(word_embed_dim + char_hidden_dim,
-                            lstm_hidden, num_layers=1, batch_first=True, dropout=0.1, bidirectional=True)
+                            lstm_hidden, num_layers=1, batch_first=True, bidirectional=True)
         self.hidden2tag = nn.Linear(lstm_hidden*2, tagset_size)
+        self.dropout = nn.Dropout(0.1)
 
     def forward(self, x1, x2):
         word_embeds = self.word_embeddings(x1)
@@ -44,6 +52,7 @@ class CharCNNBiLSTMTagger(nn.Module):
         combined_embeds = torch.cat((word_embeds, pooled), 1)
         lstm_out, _ = self.lstm(combined_embeds.view(len(x1), 1, -1))
         # lstm_out, _ = self.lstm(word_embeds.view(len(x1), 1, -1))
+        lstm_out = self.dropout(lstm_out)
         hidden2tag_out = self.hidden2tag(lstm_out.view(len(x1), -1))
         tag_scores = F.log_softmax(hidden2tag_out)
         return tag_scores
@@ -88,7 +97,6 @@ def train_model(train_file, model_file):
     # write your code here. You can add functions as well.
     # use torch library to save model parameters, hyperparameters, etc. to model_file
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    time_limit = datetime.timedelta(minutes=1, seconds=30)
     time_exceeded = False
 
     char_to_idx, word_to_idx, tag_to_idx, idx_to_tag, training_data = prepareDicts(train_file)
@@ -97,14 +105,17 @@ def train_model(train_file, model_file):
     print("number of tags: ", len(tag_to_idx))
     print("number of sentences: ", len(training_data))
 
-    model = CharCNNBiLSTMTagger(100, 10, 10, 30, len(char_to_idx), len(word_to_idx), len(tag_to_idx))
+    model = CharCNNBiLSTMTagger(wordembed_dim, char_embed_dim, cnn_filters, lstm_hidden, len(char_to_idx), len(word_to_idx), len(tag_to_idx))
     model.to(device)
 
     loss_function = nn.NLLLoss()
     optimizer = optim.SGD(model.parameters(), lr=0.1)
-    for epoch in range(3):
+    indices = np.arange(len(training_data))
+    for epoch in range(5):
         accumulated_loss = 0
-        for sent in training_data:
+        np.random.shuffle(np.arange(len(training_data)))
+        for sample_id in indices:
+            sent = training_data[sample_id]
             word_idxs = []
             tag_idxs = []
             char_idxs = []
@@ -146,7 +157,8 @@ def train_model(train_file, model_file):
         print("epoch ", epoch + 1)
 
     with open(model_file, "wb") as f:
-        pickle.dump((model.state_dict(), char_to_idx, word_to_idx, tag_to_idx, idx_to_tag), f)
+        pickle.dump((model.state_dict(), char_to_idx, word_to_idx, tag_to_idx, idx_to_tag,
+                     (wordembed_dim, char_embed_dim, cnn_filters, lstm_hidden)), f)
 
     print('Finished...')
 
