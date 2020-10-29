@@ -18,6 +18,7 @@ char_embed_dim = 128
 cnn_filters = 16
 lstm_hidden = 32
 time_limit = datetime.timedelta(minutes=1)
+learning_rate = 0.005
 
 class CharCNNBiLSTMTagger(nn.Module):
     def __init__(self, word_embed_dim, char_embed_dim, char_hidden_dim, lstm_hidden,
@@ -109,7 +110,7 @@ def train_model(train_file, model_file):
     model.to(device)
 
     loss_function = nn.NLLLoss()
-    optimizer = optim.SGD(model.parameters(), lr=0.1)
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     indices = np.arange(len(training_data))
     for epoch in range(5):
         accumulated_loss = 0
